@@ -1,40 +1,137 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# Council Helpline AI Assistant
+
+An intelligent phone-based assistant that streamlines the information gathering process for council services. When residents call the council helpline, the AI agent can understand their needs through natural conversation, navigate the council's website in real-time, and systematically collect all required information.
+
+## Features
+
+- **Natural Language Processing**: Understands resident inquiries through natural conversation
+- **Real-time Website Analysis**: Identifies relevant services and requirements
+- **Guided Information Collection**: Systematically collects all required details
+- **Email/SMS Confirmation**: Sends confirmation messages to residents
+- **Centralized Logging**: Captures all queries and identifies required follow-up actions
+- **Staff Dashboard**: Interface for council staff to review and manage inquiries
+
+## Tech Stack
+
+- **Frontend**: Next.js, React, TailwindCSS
+- **Backend**: Next.js API Routes
+- **Database**: Supabase
+- **AI/ML**: OpenAI GPT-3.5
+- **Communication**: Twilio (Voice), SendGrid (Email)
+- **Web Scraping**: Cheerio
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 18.x or later
+- npm 9.x or later
+- Supabase account
+- OpenAI API key
+- Twilio account
+- SendGrid account
+
+### Environment Variables
+
+Create a `.env.local` file in the root directory with the following variables:
+
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# OpenAI
+OPENAI_API_KEY=your_openai_api_key
+
+# Twilio
+TWILIO_ACCOUNT_SID=your_twilio_account_sid
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_PHONE_NUMBER=your_twilio_phone_number
+
+# SendGrid
+SENDGRID_API_KEY=your_sendgrid_api_key
+SENDGRID_FROM_EMAIL=your_verified_sender_email
+
+# Application
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/council-helpline-ai.git
+   cd council-helpline-ai
+   ```
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Learn More
+## Database Schema
 
-To learn more about Next.js, take a look at the following resources:
+The application uses Supabase with the following main tables:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+### queries
+- `id`: UUID (primary key)
+- `callSid`: String (Twilio call ID)
+- `phone`: String (caller's phone number)
+- `step`: Integer (conversation step)
+- `status`: String (pending, in_progress, complete)
+- `details`: JSONB (collected information)
+- `message`: String (last message)
+- `submittedAt`: Timestamp
+- `createdAt`: Timestamp
+- `completedAt`: Timestamp
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API Endpoints
 
-## Deploy on Vercel
+### `/api/call-handler`
+Handles incoming Twilio voice calls and manages the conversation flow.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### `/api/service-requirements`
+Returns the required fields and information for a specific council service.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+### `/api/scrape`
+Scrapes council websites to extract service requirements.
+
+## Deployment
+
+1. Build the application:
+   ```bash
+   npm run build
+   ```
+
+2. Start the production server:
+   ```bash
+   npm start
+   ```
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- OpenAI for providing the GPT-3.5 API
+- Twilio for voice call handling
+- SendGrid for email services
+- Supabase for database and authentication
+- Next.js team for the amazing framework

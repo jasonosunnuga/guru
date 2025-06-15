@@ -1,104 +1,152 @@
 // src/pages/api/call-handler.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import rawBody from 'raw-body';
+import { parse } from 'querystring';
 import twilio from 'twilio';
 import { openai } from '@/lib/openai';
 import { supabase } from '@/lib/supabase';
-import { twilioClient } from '@/lib/twilio';
+import { sendCustomerEmail } from '@/lib/sendgrid';
 
 const { VoiceResponse } = twilio.twiml;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const isVoice = Boolean(req.body.SpeechResult);
-  const isSMS   = Boolean(req.body.Body) && !isVoice;
-  const from    = (req.body.From as string) || '';
+// Tell Next.js not to parse the body (we need raw form data)
+export const config = {
+  api: { bodyParser: false }
+};
 
-  // --- 1) If neither voice nor SMS, assume new call and prompt for speech ---
-  if (!isVoice && !isSMS) {
-    const twiml = new VoiceResponse();
-    const gather = twiml.gather({
-      input: ['speech'],
+// Phrases that mean "I'm done"
+const DONE_PHRASES = [
+  "i am done","i'm done","that's all","finished","no more",
+  "nothing else","end","stop","complete","yes i'm done","yes that's all"
+];
+function userIsDone(input: string): boolean {
+  const t = input.trim().toLowerCase();
+  return DONE_PHRASES.some(p => t === p || t.includes(p));
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const twiml = new VoiceResponse();
+  try {
+    // 1) parse Twilio's form-encoded POST
+    const buf  = await rawBody(req);
+    const body = parse(buf.toString());
+    const callSid = String(body.CallSid || body.From || '');
+    const speech  = String(body.SpeechResult || '').trim();
+
+    // 2) load or initialize conversation
+    const { data: convRow } = await supabase
+      .from('conversations')
+      .select('messages, status')
+      .eq('callSid', callSid)
+      .maybeSingle();
+
+    let messages: Array<{ role: string; content: string }> = [];
+    let status = 'active';
+    if (convRow) {
+      messages = convRow.messages as any || [];
+      status   = convRow.status as string || 'active';
+    }
+
+    // 3) first turn: ask the opening prompt
+    if (!speech) {
+      // ask initial question
+      const g = twiml.gather({
+        input:   ['speech'],
+        action:  '/api/call-handler',
+        method:  'POST',
+        timeout: 5
+      });
+      g.say("Hi, I'm Guru, your council assistant. How can I help you today?");
+      twiml.redirect('/api/call-handler');
+      res.setHeader('Content-Type','text/xml');
+      return res.status(200).send(twiml.toString());
+    }
+
+    // 4) append user utterance
+    messages.push({ role: 'user', content: speech });
+
+    // 5) check for done‐phrase
+    if (userIsDone(speech) && status === 'active') {
+      // build summary email & dashboard entry
+      const summaryText = messages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => `${m.role === 'user' ? 'You:' : 'Guru:'} ${m.content}`)
+        .join('\n');
+
+      // email to staff or user?—here we email support@council.gov
+      await sendCustomerEmail(
+        'staff@council.gov',
+        `Completed call ${callSid}`,
+        `The caller said they're done. Here is the full transcript:\n\n${summaryText}`,
+        `<pre>${summaryText}</pre>`
+      );
+
+      // mark conversation completed
+      await supabase
+        .from('conversations')
+        .upsert({ callSid, messages, status: 'completed', updated_at: new Date().toISOString() })
+        .eq('callSid', callSid);
+
+      // final TwiML
+      twiml.say("Thanks! I've logged your request and sent a summary to our dashboard and emailed next steps. Goodbye!");
+      twiml.hangup();
+      res.setHeader('Content-Type','text/xml');
+      return res.status(200).send(twiml.toString());
+    }
+
+    // 6) call OpenAI to generate the next follow-up
+    const systemPrompt = `
+You are Guru, a friendly, expert AI assistant for UK local council services.
+Your job is to gather all necessary details from the caller—address, email, dates, etc—
+in a natural conversation.  Ask one question at a time, waiting for their reply.
+Once they say "I'm done" or similar, respond with a closing summary.
+`;
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        { role: 'system',  content: systemPrompt.trim() },
+        ...messages.map(m => ({ role: m.role as any, content: m.content }))
+      ],
+      temperature: 0.7
+    });
+    const aiMsg = completion.choices[0]?.message?.content?.trim()
+                ?? "Sorry, I didn't catch that.";
+
+    // 7) append AI message
+    messages.push({ role: 'assistant', content: aiMsg });
+
+    // 8) upsert back to Supabase
+    await supabase
+      .from('conversations')
+      .upsert(
+        {
+          callSid,
+          messages,
+          status: 'active',
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'callSid' }
+      );
+
+    // 9) speak and loop
+    const g2 = twiml.gather({
+      input:  ['speech'],
       action: '/api/call-handler',
       method: 'POST',
-      timeout: 5,
+      timeout: 5
     });
-    gather.say(
-      "Hi, I'm Guru, your council helper. " +
-      "Please briefly describe what you need help with today."
-    );
-    // If no response, redirect back to prompt
+    g2.say(aiMsg);
     twiml.redirect('/api/call-handler');
 
-    res.setHeader('Content-Type', 'text/xml');
+    res.setHeader('Content-Type','text/xml');
     return res.status(200).send(twiml.toString());
+
+  } catch (err: any) {
+    console.error('CALL HANDLER ERROR:', err);
+    twiml.say("Sorry, we're having technical issues—please try again later.");
+    twiml.hangup();
+    res.setHeader('Content-Type','text/xml');
+    return res.status(500).send(twiml.toString());
   }
-
-  // --- 2) Capture the transcription or SMS body ---
-  const transcription = isVoice
-    ? (req.body.SpeechResult as string)
-    : (req.body.Body as string);
-
-  // --- 3) Use OpenAI to categorize + suggest action ---
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4-turbo',
-    messages: [
-      { role: "system", content: "You're an AI that categorizes council service requests." },
-      { role: "user",   content: `Caller said: "${transcription}"` }
-    ]
-  });
-  const aiReply = completion.choices[0].message?.content?.trim()
-                || "I'm sorry, I did not understand your request.";
-
-  // --- 4) Log into Supabase ---
-  const { data, error } = await supabase
-    .from('queries')
-    .insert({
-      phone: from,
-      message: transcription,
-      category: aiReply.split('\n')[0],
-      recommendedAction: aiReply,
-      submittedAt: new Date().toISOString(),
-    });
-  
-  if (error) {
-    console.error('Supabase insert error:', error);
-    // Log the full error details
-    console.error('Error details:', {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint
-    });
-    // Still proceed with Twilio response even if DB insert fails
-  } else {
-    console.log('Successfully inserted into Supabase:', data);
-  }
-
-  // --- 5a) If SMS, reply via SMS only ---
-  if (isSMS) {
-    await twilioClient.messages.create({
-      body: `Thanks! We've logged your request as: ${aiReply}`,
-      from: process.env.TWILIO_PHONE_NUMBER!,
-      to:   from,
-    });
-    return res.status(200).end();
-  }
-
-  // --- 5b) If Voice, reply on-call via TwiML + also send SMS ---
-  const twiml = new VoiceResponse();
-  twiml.say(
-    `Thank you. Your request has been logged as: ${aiReply}. ` +
-    'A confirmation text has also been sent. Goodbye.'
-  );
-  twiml.hangup();
-
-  // SMS follow-up
-  await twilioClient.messages.create({
-    body: `We've logged your council request: ${aiReply}`,
-    from: process.env.TWILIO_PHONE_NUMBER!,
-    to:   from,
-  });
-
-  res.setHeader('Content-Type', 'text/xml');
-  return res.status(200).send(twiml.toString());
 }
