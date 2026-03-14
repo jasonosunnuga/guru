@@ -1,6 +1,6 @@
 # Council Helpline AI Assistant
 
-An intelligent phone-based assistant that streamlines the information gathering process for council services. When residents call the council helpline, the AI agent can understand their needs through natural conversation, navigate the council's website in real-time, and systematically collect all required information.
+An intelligent phone-based assistant that streamlines the information gathering process for council services. When residents call the council helpline, the AI agent can understand their needs through natural conversation, navigate the council's website in real-time, and systematically collect all required information. (My twilio subscrition has run out so calls are no longer possible however the chat bot on the site still works.)
 
 ## Features
 
