@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, FormEvent } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { Card, CardContent, CardHeader } from '@/components/card';
@@ -78,12 +79,15 @@ export default function ChatPage() {
     setIsTyping(true);
 
     try {
-      const response = await fetch('/api/call-handler', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, messages: newMsgs })
       });
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to get response');
+      }
       setMessages(data.messages ?? newMsgs);
     } catch {
       setMessages((prev) => [
@@ -99,6 +103,11 @@ export default function ChatPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
+          <div className="mb-4">
+            <Link href="/">
+              <Button variant="outline" size="sm">← Back to Home</Button>
+            </Link>
+          </div>
           <Card>
             <CardHeader className="text-center border-b">
               <div className="flex items-center justify-center space-x-4">
@@ -127,41 +136,44 @@ export default function ChatPage() {
 
                 {/* Chat messages */}
                 <div className="space-y-4">
-                  {(messages ?? []).map((msg, i) => (
+                  {(messages ?? []).map((msg, i) => {
+                    const isUser = msg.role === 'user';
+                    return (
                     <div
                       key={i}
                       className={`flex ${
-                        msg.role === 'user' ? 'justify-end' : 'justify-start'
+                        isUser ? 'justify-end' : 'justify-start'
                       }`}
                     >
                       <div
                         className={`flex items-start space-x-2 max-w-[80%] ${
-                          msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+                          isUser ? 'flex-row-reverse space-x-reverse' : ''
                         }`}
                       >
                         <div
-                          className={`p-2 rounded-full ${
-                            msg.role === 'user' ? 'bg-blue-600' : 'bg-gray-200'
+                          className={`p-2 rounded-full shrink-0 ${
+                            isUser ? 'bg-blue-600' : 'bg-slate-200'
                           }`}
                         >
-                          {msg.role === 'user' ? (
+                          {isUser ? (
                             <User className="h-4 w-4 text-white" />
                           ) : (
-                            <Bot className="h-4 w-4 text-gray-600" />
+                            <Bot className="h-4 w-4 text-slate-700" />
                           )}
                         </div>
                         <div
                           className={`p-3 rounded-lg ${
-                            msg.role === 'user'
+                            isUser
                               ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 text-gray-800'
+                              : 'bg-slate-100 text-slate-900'
                           }`}
                         >
                           <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Typing indicator */}
                   {isTyping && (

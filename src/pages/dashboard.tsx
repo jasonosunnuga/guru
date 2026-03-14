@@ -44,7 +44,7 @@ type Query = {
   resident_phone: string;
   service_type: string;
   priority: string;
-  status: 'pending' | 'in_progress' | 'complete' | 'requires_info' | 'cancelled';
+  status: 'pending' | 'in_progress' | 'completed' | 'requires_info' | 'cancelled';
   created_at: string;
   staff_notes?: string;
   conversation_log?: Array<{
@@ -125,7 +125,7 @@ export default function DashboardPage() {
         total: list.length,
         pending: list.filter(q => q.status === 'pending').length,
         inProgress: list.filter(q => q.status === 'in_progress').length,
-        completed: list.filter(q => q.status === 'complete').length,
+        completed: list.filter(q => q.status === 'completed').length,
         today: list.filter(q => new Date(q.created_at).toDateString() === today).length
       });
     } catch (e) {
@@ -159,7 +159,7 @@ export default function DashboardPage() {
     switch (status) {
       case 'pending': return <Clock className="h-4 w-4" />;
       case 'in_progress': return <RefreshCw className="h-4 w-4" />;
-      case 'complete': return <CheckCircle className="h-4 w-4" />;
+      case 'completed': return <CheckCircle className="h-4 w-4" />;
       case 'requires_info': return <AlertCircle className="h-4 w-4" />;
       case 'cancelled': return <XCircle className="h-4 w-4" />;
       default: return <Clock className="h-4 w-4" />;
@@ -170,7 +170,7 @@ export default function DashboardPage() {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'complete': return 'bg-green-100 text-green-800';
+      case 'completed': return 'bg-green-100 text-green-800';
       case 'requires_info': return 'bg-orange-100 text-orange-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -197,15 +197,20 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <h1 className="text-3xl font-bold mb-4">Staff Dashboard</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <Link href="/">
+          <Button variant="outline" size="sm">← Back to Home</Button>
+        </Link>
+      </div>
+      <h1 className="text-3xl font-bold mb-4 text-gray-900">Staff Dashboard</h1>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
-        <Card><CardHeader><CardTitle>Total</CardTitle></CardHeader><CardContent><BarChart3 className="h-6 w-6 text-blue-600"/> {stats.total}</CardContent></Card>
-        <Card><CardHeader><CardTitle>Pending</CardTitle></CardHeader><CardContent><Clock className="h-6 w-6 text-yellow-600"/> {stats.pending}</CardContent></Card>
-        <Card><CardHeader><CardTitle>In Progress</CardTitle></CardHeader><CardContent><RefreshCw className="h-6 w-6 text-blue-600"/> {stats.inProgress}</CardContent></Card>
-        <Card><CardHeader><CardTitle>Completed</CardTitle></CardHeader><CardContent><CheckCircle className="h-6 w-6 text-green-600"/> {stats.completed}</CardContent></Card>
-        <Card><CardHeader><CardTitle>Today</CardTitle></CardHeader><CardContent><Calendar className="h-6 w-6 text-purple-600"/> {stats.today}</CardContent></Card>
+        <Card className="text-gray-900"><CardHeader><CardTitle className="text-gray-900">Total</CardTitle></CardHeader><CardContent className="text-gray-700"><BarChart3 className="h-6 w-6 text-blue-600 inline mr-2"/> {stats.total}</CardContent></Card>
+        <Card className="text-gray-900"><CardHeader><CardTitle className="text-gray-900">Pending</CardTitle></CardHeader><CardContent className="text-gray-700"><Clock className="h-6 w-6 text-yellow-600 inline mr-2"/> {stats.pending}</CardContent></Card>
+        <Card className="text-gray-900"><CardHeader><CardTitle className="text-gray-900">In Progress</CardTitle></CardHeader><CardContent className="text-gray-700"><RefreshCw className="h-6 w-6 text-blue-600 inline mr-2"/> {stats.inProgress}</CardContent></Card>
+        <Card className="text-gray-900"><CardHeader><CardTitle className="text-gray-900">Completed</CardTitle></CardHeader><CardContent className="text-gray-700"><CheckCircle className="h-6 w-6 text-green-600 inline mr-2"/> {stats.completed}</CardContent></Card>
+        <Card className="text-gray-900"><CardHeader><CardTitle className="text-gray-900">Today</CardTitle></CardHeader><CardContent className="text-gray-700"><Calendar className="h-6 w-6 text-purple-600 inline mr-2"/> {stats.today}</CardContent></Card>
       </div>
 
       {/* Filters */}
@@ -221,7 +226,7 @@ export default function DashboardPage() {
               <SelectItem value="all">All</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="complete">Completed</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="requires_info">Requires Info</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
@@ -284,7 +289,7 @@ export default function DashboardPage() {
                 <TabsTrigger value="actions">Actions</TabsTrigger>
               </TabsList>
               <TabsContent value="details">
-                <div className="space-y-2">
+                <div className="space-y-2 text-gray-900">
                   <p><strong>Email:</strong> {selectedQuery.resident_email}</p>
                   <p><strong>Phone:</strong> {selectedQuery.resident_phone}</p>
                   <p><strong>Service:</strong> {selectedQuery.service_type}</p>
@@ -294,18 +299,22 @@ export default function DashboardPage() {
               <TabsContent value="conversation">
                 <ScrollArea className="h-64">
                   {selectedQuery.conversation_log?.map((m,i)=>(
-                    <div key={i} className={`p-2 ${m.role==='user'?'bg-blue-50':'bg-gray-50'} mb-1 rounded`}>
-                      <p className="text-xs text-gray-500">{new Date(m.timestamp).toLocaleTimeString()}</p>
-                      <p>{m.content}</p>
+                    <div key={i} className={`p-2 ${m.role==='user'?'bg-blue-50 text-gray-900':'bg-gray-100 text-gray-900'} mb-1 rounded`}>
+                      <p className="text-xs text-gray-600">{m.timestamp ? new Date(m.timestamp).toLocaleTimeString() : ''}</p>
+                      <p className="text-gray-900">{m.content}</p>
                     </div>
-                  )) || <p>No conversation</p>}
+                  )) || <p className="text-gray-600">No conversation</p>}
                 </ScrollArea>
               </TabsContent>
               <TabsContent value="actions">
-                <Textarea value={staffNotes} onChange={e => setStaffNotes(e.target.value)} placeholder="Staff notes"/>
+                <div className="space-y-3">
+                  <Textarea value={staffNotes} onChange={e => setStaffNotes(e.target.value)} placeholder="Staff notes" className="text-gray-900"/>
+                  <div className="flex flex-wrap gap-2">
                 <Button onClick={() => updateStaffNotes(selectedQuery.id, staffNotes)}>Save Notes</Button>
                 <Button onClick={() => updateQueryStatus(selectedQuery.id, 'in_progress')}>Mark In Progress</Button>
-                <Button onClick={() => updateQueryStatus(selectedQuery.id, 'complete')}>Mark Complete</Button>
+                <Button onClick={() => updateQueryStatus(selectedQuery.id, 'completed')}>Mark Complete</Button>
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </DialogContent>
